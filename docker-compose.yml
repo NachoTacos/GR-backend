@@ -54,6 +54,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en .env}
       UPLOADS_PATH: /app/uploads
       UPLOAD_MAX_BYTES: ${UPLOAD_MAX_BYTES:-5242880}
+      PRIVATE_FILES_PATH: /app/private
       AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-ricartti_session}
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
       AUTH_SESSION_IDLE_MINUTES: ${AUTH_SESSION_IDLE_MINUTES:-30}
@@ -75,6 +76,8 @@ services:
       - "${API_PORT:-5080}:8080"
     volumes:
       - ./uploads:/app/uploads
+      # CV de postulantes: volumen con nombre, fuera del repo y de /uploads.
+      - private-files:/app/private
     depends_on:
       db:
         condition: service_healthy
@@ -93,6 +96,7 @@ services:
 
 volumes:
   pgdata:
+  private-files:
 
 networks:
   ricartti:

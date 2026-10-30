@@ -1,9 +1,10 @@
 -- =====================================================================
 -- Grupo Ricartti — 02: datos de prueba
 -- ---------------------------------------------------------------------
--- TODOS LOS DATOS SON FICTICIOS. Los nombres de proyectos, personas,
--- cifras y correos (dominio reservado .test) se inventaron para la
--- demostración. Cualquier parecido con entidades reales es casual.
+-- TODOS LOS DATOS SON FICTICIOS (contenido de demostración).
+-- Portafolio tomado del handoff de frontend (§11, src/api/mocks/seed.json):
+-- 3 categorías y 7 proyectos; "ruta-fria" está oculto y nunca debe
+-- aparecer en el sitio público. Imágenes en uploads/seed/<slug>/.
 --
 -- Credenciales de prueba (también en el README):
 --   admin@gruporicartti.test        / Ricartti#Admin2026     (activo)
@@ -29,277 +30,312 @@ INSERT INTO admins (email, full_name, password_hash, is_active) VALUES
 
 
 -- ---------------------------------------------------------------------
--- Categorías ("Educación" está inactiva y sin proyectos: no debe
--- aparecer en el filtro público).
+-- Catálogos
 -- ---------------------------------------------------------------------
-INSERT INTO categories (name, slug, description, sort_order, is_active) VALUES
-    ('Fintech',          'fintech',         'Servicios financieros digitales para personas y pymes.',      1, true),
-    ('Salud digital',    'salud-digital',   'Tecnología que acerca la atención médica a más personas.',    2, true),
-    ('Energía limpia',   'energia-limpia',  'Generación renovable y eficiencia energética.',               3, true),
-    ('Logística',        'logistica',       'Cadena de suministro, transporte y última milla.',            4, true),
-    ('Agrotecnología',   'agrotecnologia',  'Datos y tecnología aplicados al campo.',                      5, true),
-    ('Bienes raíces',    'bienes-raices',   'Desarrollos inmobiliarios y soluciones proptech.',            6, true),
-    ('Educación',        'educacion',       'Plataformas de aprendizaje y formación profesional.',         7, false);
+INSERT INTO categories (slug, name_es, name_en, sort_order) VALUES
+    ('fintech',    'Fintech',        'Fintech',        1),
+    ('agrotech',   'Agrotech',       'Agrotech',       2),
+    ('healthtech', 'Salud digital',  'Digital health', 3);
+
+INSERT INTO support_areas (code, name_es, name_en, sort_order) VALUES
+    ('marca',     'Laboratorio de marca', 'Brand laboratory', 1),
+    ('legal',     'Legal',                'Legal',            2),
+    ('comercial', 'Comercial',            'Commercial',       3),
+    ('fiscal',    'Fiscal',               'Tax',              4);
 
 
 -- ---------------------------------------------------------------------
--- Proyectos
---   · 9 visibles → con pageSize 6 la galería tiene 2 páginas.
---   · "hidro-pura": borrador (oculto, sin portada, nunca publicado).
---   · "mercado-verde": publicado antes y ahora oculto (pausado).
+-- Proyectos (6 visibles + Ruta Fría oculto)
 -- ---------------------------------------------------------------------
 INSERT INTO projects
-    (category_id, title, slug, summary, description, cover_image_path,
-     is_visible, sort_order, published_at, created_at, created_by, updated_by)
-SELECT c.id, v.title, v.slug, v.summary, v.description, v.cover,
-       v.is_visible, v.sort_order, v.published_at::timestamptz, v.created_at::timestamptz,
-       a.id, a.id
+    (category_id, slug, name, stage, year, summary_es, summary_en,
+     description_es, description_en, cover_image_path, is_visible, sort_order,
+     created_by, updated_by)
+SELECT c.id, v.slug, v.name, v.stage, v.year, v.summary_es, v.summary_en,
+       v.description_es, v.description_en, '/uploads/seed/' || v.slug || '/cover.webp',
+       v.is_visible, v.sort_order, a.id, a.id
 FROM (VALUES
-    ('fintech', 'Nodo Pagos', 'nodo-pagos',
-     'Terminal y pasarela de pagos para pequeños comercios, con liquidación en 24 horas.',
-     'Nodo Pagos ofrece a tienditas, fondas y mercados municipales una terminal de bajo costo y una pasarela en línea con liquidación al día siguiente. Grupo Ricartti lideró la ronda semilla y acompañó la expansión a tres estados, además de la integración con proveedores de facturación electrónica.',
-     '/uploads/seed/nodo-pagos/portada.png', true, 10, '2025-03-12 16:00:00+00', '2025-02-20 15:00:00+00'),
+    ('fintech', 'kuali-pagos', 'Kuali Pagos', 'venture', 2023,
+     'Cobros B2B para PyMEs del Bajío, conciliados en tiempo real.',
+     'B2B collections for SMBs in central Mexico, reconciled in real time.',
+     'Kuali conecta facturación CFDI con cuentas bancarias para que las PyMEs cobren a tiempo. Incubada en 2023, hoy opera con capital de riesgo del grupo.',
+     'Kuali links CFDI invoicing with bank accounts so SMBs get paid on time. Incubated in 2023, now running on group venture capital.',
+     true, 10),
 
-    ('fintech', 'Crédito Semilla', 'credito-semilla',
-     'Microcréditos para productores agrícolas con evaluación de riesgo basada en datos de cosecha.',
-     'Crédito Semilla evalúa a pequeños productores con información de rendimiento histórico, clima y precios de mercado en lugar del historial crediticio tradicional. La inversión financió el fondeo de la cartera inicial y el equipo de análisis de riesgo.',
-     '/uploads/seed/credito-semilla/portada.png', true, 20, '2025-06-02 16:00:00+00', '2025-05-10 15:00:00+00'),
+    ('fintech', 'nodo-credito', 'Nodo Crédito', 'incubacion', 2025,
+     'Score crediticio alternativo para trabajadores independientes.',
+     'Alternative credit scoring for independent workers.',
+     'Nodo evalúa ingresos de plataformas y pagos de servicios para otorgar microcréditos a personas sin historial bancario.',
+     'Nodo scores platform income and utility payments to grant micro-loans to people with no bank history.',
+     true, 20),
 
-    ('salud-digital', 'Vitalia Expediente', 'vitalia-expediente',
-     'Expediente clínico en la nube para clínicas privadas medianas.',
-     'Vitalia digitaliza el expediente clínico, la agenda y la receta electrónica de clínicas de 5 a 50 consultorios. Grupo Ricartti aportó capital y la red de contactos para cerrar convenios con aseguradoras médicas.',
-     '/uploads/seed/vitalia-expediente/portada.png', true, 30, '2024-11-20 16:00:00+00', '2024-10-30 15:00:00+00'),
+    ('agrotech', 'raiz-analytics', 'Raíz Analytics', 'venture', 2022,
+     'Sensores de humedad y riego predictivo para huertas de nogal.',
+     'Moisture sensors and predictive irrigation for pecan orchards.',
+     'Raíz instala sensores de bajo costo en huertas de Durango y Chihuahua y recomienda riegos según el pronóstico.',
+     'Raíz installs low-cost sensors in Durango and Chihuahua orchards and schedules irrigation from the forecast.',
+     true, 30),
 
-    ('salud-digital', 'Red TeleSalud Norte', 'red-telesalud-norte',
-     'Red de telemedicina para comunidades rurales con especialistas a distancia.',
-     'La red instala módulos de consulta en centros comunitarios y los conecta con especialistas en cardiología, pediatría y dermatología. El modelo combina financiamiento público y privado, estructurado con apoyo de Grupo Ricartti.',
-     '/uploads/seed/red-telesalud-norte/portada.png', true, 40, '2025-09-15 16:00:00+00', '2025-08-25 15:00:00+00'),
+    ('agrotech', 'cosecha-directa', 'Cosecha Directa', 'incubacion', 2025,
+     'Del productor al restaurante en menos de 24 horas.',
+     'From grower to restaurant in under 24 hours.',
+     'Marketplace que agrupa pedidos de restaurantes y los surte directamente con productores locales.',
+     'A marketplace that pools restaurant orders and fills them straight from local growers.',
+     true, 40),
 
-    ('energia-limpia', 'Solaria Industrial', 'solaria-industrial',
-     'Instalación y financiamiento de techos solares para naves industriales.',
-     'Solaria diseña, instala y financia sistemas fotovoltaicos en techos de parques industriales bajo contratos de compra de energía a 10 años. Fue la primera salida exitosa del portafolio, con venta a un fondo de infraestructura.',
-     '/uploads/seed/solaria-industrial/portada.png', true, 50, '2024-08-05 16:00:00+00', '2024-07-15 15:00:00+00'),
+    ('healthtech', 'clinica-lince', 'Clínica Lince', 'venture', 2023,
+     'Telemedicina para comunidades rurales con enfermería en sitio.',
+     'Telemedicine for rural communities with on-site nurses.',
+     'Lince combina consultas remotas con enfermeras de la comunidad y receta electrónica surtida por farmacias locales.',
+     'Lince pairs remote consults with community nurses and e-prescriptions filled by local pharmacies.',
+     true, 50),
 
-    ('logistica', 'Ruta Fría', 'ruta-fria',
-     'Red de cadena de frío para distribuidores de alimentos perecederos.',
-     'Ruta Fría opera centros de consolidación refrigerados y unidades con monitoreo de temperatura en tiempo real. La inversión permitió abrir dos nuevos centros y certificar la operación bajo normas de inocuidad alimentaria.',
-     '/uploads/seed/ruta-fria/portada.png', true, 60, '2025-01-28 16:00:00+00', '2025-01-08 15:00:00+00'),
+    ('healthtech', 'dosis', 'Dosis', 'exit', 2021,
+     'Inventario farmacéutico inteligente para cadenas regionales.',
+     'Smart pharmacy inventory for regional chains.',
+     'Dosis predijo la demanda de 140 sucursales. Vendida en 2025 a un operador logístico nacional.',
+     'Dosis forecast demand for 140 branches. Sold in 2025 to a national logistics operator.',
+     true, 60),
 
-    ('logistica', 'Cargo Ágil', 'cargo-agil',
-     'Software de optimización de rutas para flotillas de reparto urbano.',
-     'Cargo Ágil calcula rutas óptimas considerando tráfico, ventanas de entrega y capacidad de cada unidad. Grupo Ricartti participó en la serie A y conectó a la empresa con cadenas de autoservicio de la región.',
-     '/uploads/seed/cargo-agil/portada.png', true, 70, '2026-02-10 16:00:00+00', '2026-01-20 15:00:00+00'),
-
-    ('agrotecnologia', 'Sensa Campo', 'sensa-campo',
-     'Sensores de humedad y clima que reducen el consumo de agua en cultivos.',
-     'Sensa Campo instala sensores de suelo y estaciones climáticas que recomiendan cuándo y cuánto regar. Los productores consultan las recomendaciones desde una aplicación móvil que funciona sin conexión.',
-     '/uploads/seed/sensa-campo/portada.png', true, 80, '2025-04-18 16:00:00+00', '2025-03-28 15:00:00+00'),
-
-    ('bienes-raices', 'Torre Alameda', 'torre-alameda',
-     'Desarrollo de usos mixtos con oficinas, vivienda y comercio en zona centro.',
-     'Torre Alameda reúne 18 niveles de oficinas, 120 departamentos y planta baja comercial a una cuadra del transporte público. Grupo Ricartti estructuró el vehículo de coinversión y coordinó a los socios desarrolladores.',
-     '/uploads/seed/torre-alameda/portada.png', true, 90, '2024-05-30 16:00:00+00', '2024-05-01 15:00:00+00'),
-
-    ('energia-limpia', 'Hidro Pura', 'hidro-pura',
-     'Planta modular de tratamiento de agua para parques industriales.',
-     'Proyecto en evaluación: plantas modulares que tratan y reutilizan el agua de proceso de parques industriales. Pendiente de due diligence técnica y financiera.',
-     NULL, false, 100, NULL, '2026-09-01 15:00:00+00'),
-
-    ('agrotecnologia', 'Mercado Verde', 'mercado-verde',
-     'Marketplace que conecta productores locales con restaurantes.',
-     'Mercado Verde conecta a productores de la región con restaurantes que buscan insumos frescos. La publicación está pausada mientras la empresa reestructura su operación logística.',
-     '/uploads/seed/mercado-verde/portada.png', false, 110, '2025-07-01 16:00:00+00', '2025-06-10 15:00:00+00')
-) AS v (category_slug, title, slug, summary, description, cover,
-        is_visible, sort_order, published_at, created_at)
+    ('agrotech', 'ruta-fria', 'Ruta Fría', 'incubacion', 2026,
+     'Monitoreo de cadena de frío para exportadores de berries.',
+     'Cold-chain monitoring for berry exporters.',
+     'Proyecto en etapa temprana; oculto hasta cerrar su primer piloto.',
+     'Early-stage project; hidden until its first pilot closes.',
+     false, 70)
+) AS v (category_slug, slug, name, stage, year, summary_es, summary_en,
+        description_es, description_en, is_visible, sort_order)
 JOIN categories c ON c.slug  = v.category_slug
-JOIN admins     a ON a.email = 'admin@gruporicartti.test';
+JOIN admins     a ON a.email = 'admin@gruporicartti.test'
+-- Orden explícito: los ids coinciden con los mocks del handoff (kuali-pagos = 1 … ruta-fria = 7).
+ORDER BY v.sort_order;
 
 
 -- ---------------------------------------------------------------------
--- Evidencias (imágenes y resultados)
+-- Evidencias en imagen: los 7 proyectos tienen 3 imágenes con los
+-- mismos pies de foto (handoff §11).
 -- ---------------------------------------------------------------------
-INSERT INTO project_evidences
-    (project_id, kind, title, description, image_path, alt_text,
-     metric_value, metric_label, sort_order)
-SELECT p.id, v.kind, v.title, v.description, v.image_path, v.alt_text,
-       v.metric_value, v.metric_label, v.sort_order
+INSERT INTO project_images (project_id, image_path, caption_es, caption_en, sort_order)
+SELECT p.id, '/uploads/seed/' || p.slug || '/evidence-' || e.n || '.webp',
+       e.caption_es, e.caption_en, e.n
+FROM projects p
+CROSS JOIN (VALUES
+    (1, 'Panel de operación', 'Operations dashboard'),
+    (2, 'Piloto en campo',    'Field pilot'),
+    (3, 'Reporte trimestral', 'Quarterly report')
+) AS e (n, caption_es, caption_en);
+
+
+-- ---------------------------------------------------------------------
+-- Resultados (Ruta Fría no tiene: la sección se oculta en el detalle)
+-- ---------------------------------------------------------------------
+INSERT INTO project_results (project_id, value, label_es, label_en, sort_order)
+SELECT p.id, v.value, v.label_es, v.label_en, v.sort_order
 FROM (VALUES
-    -- Nodo Pagos
-    ('nodo-pagos', 'result', NULL, 'Comparativo 2024 contra 2025.', NULL, NULL, '+38 %', 'Crecimiento anual del volumen procesado', 1),
-    ('nodo-pagos', 'result', NULL, NULL, NULL, NULL, '12,000', 'Comercios activos', 2),
-    ('nodo-pagos', 'image', 'Piloto en mercados municipales', 'Primer despliegue en 40 locales.',
-        '/uploads/seed/nodo-pagos/evidencia-1.png', 'Comerciante cobrando con la terminal de Nodo Pagos', NULL, NULL, 3),
+    ('kuali-pagos',     '+38%',   'cobranza puntual',          'on-time collections',     1),
+    ('kuali-pagos',     '1,200',  'PyMEs activas',             'active SMBs',             2),
+    ('kuali-pagos',     '$84 M',  'MXN conciliados al mes',    'MXN reconciled monthly',  3),
+    ('nodo-credito',    '4,300',  'solicitudes en piloto',     'pilot applications',      1),
+    ('nodo-credito',    '2.1%',   'morosidad a 90 días',       '90-day delinquency',      2),
+    ('nodo-credito',    '6 sem',  'hasta el primer crédito',   'to first loan',           3),
+    ('raiz-analytics',  '−27%',   'consumo de agua',           'water use',               1),
+    ('raiz-analytics',  '310',    'hectáreas monitoreadas',    'hectares monitored',      2),
+    ('raiz-analytics',  '+12%',   'rendimiento por árbol',     'yield per tree',          3),
+    ('cosecha-directa', '48',     'restaurantes en piloto',    'pilot restaurants',       1),
+    ('cosecha-directa', '19 h',   'tiempo medio de entrega',   'average delivery time',   2),
+    ('cosecha-directa', '+22%',   'ingreso al productor',      'grower income',           3),
+    ('clinica-lince',   '22 mil', 'consultas al año',          'consults per year',       1),
+    ('clinica-lince',   '37',     'comunidades atendidas',     'communities served',      2),
+    ('clinica-lince',   '4.8/5',  'satisfacción',              'satisfaction',            3),
+    ('dosis',           '−31%',   'merma de inventario',       'inventory shrink',        1),
+    ('dosis',           '140',    'sucursales',                'branches',                2),
+    ('dosis',           '2025',   'año de venta',              'year sold',               3)
+) AS v (project_slug, value, label_es, label_en, sort_order)
+JOIN projects p ON p.slug = v.project_slug;
 
-    -- Crédito Semilla
-    ('credito-semilla', 'result', NULL, 'Por debajo del promedio del sector.', NULL, NULL, '3.1 %', 'Cartera vencida a 12 meses', 1),
-    ('credito-semilla', 'result', NULL, NULL, NULL, NULL, '4,800', 'Créditos otorgados', 2),
 
-    -- Vitalia Expediente
-    ('vitalia-expediente', 'image', 'Panel del médico', NULL,
-        '/uploads/seed/vitalia-expediente/evidencia-1.png', 'Pantalla del expediente clínico de Vitalia en una computadora', NULL, NULL, 1),
-    ('vitalia-expediente', 'result', NULL, NULL, NULL, NULL, '-45 %', 'Tiempo de registro por consulta', 2),
-    ('vitalia-expediente', 'result', NULL, NULL, NULL, NULL, '86', 'Clínicas usando la plataforma', 3),
-
-    -- Red TeleSalud Norte
-    ('red-telesalud-norte', 'image', 'Módulo comunitario', 'Centro de consulta remota en operación.',
-        '/uploads/seed/red-telesalud-norte/evidencia-1.png', 'Módulo de telemedicina instalado en un centro comunitario', NULL, NULL, 1),
-    ('red-telesalud-norte', 'result', NULL, 'Primer año de operación.', NULL, NULL, '21,000', 'Consultas remotas realizadas', 2),
-
-    -- Solaria Industrial
-    ('solaria-industrial', 'image', 'Parque industrial', NULL,
-        '/uploads/seed/solaria-industrial/evidencia-1.png', 'Paneles solares sobre el techo de una nave industrial', NULL, NULL, 1),
-    ('solaria-industrial', 'image', 'Centro de monitoreo', NULL,
-        '/uploads/seed/solaria-industrial/evidencia-2.png', 'Tablero de monitoreo de generación solar', NULL, NULL, 2),
-    ('solaria-industrial', 'result', 'Salida', 'Venta a un fondo de infraestructura.', NULL, NULL, '4.2x', 'Múltiplo sobre capital invertido', 3),
-    ('solaria-industrial', 'result', NULL, NULL, NULL, NULL, '18 MW', 'Capacidad instalada', 4),
-
-    -- Ruta Fría
-    ('ruta-fria', 'image', 'Centro de consolidación', NULL,
-        '/uploads/seed/ruta-fria/evidencia-1.png', 'Interior de un almacén refrigerado con tarimas de producto', NULL, NULL, 1),
-    ('ruta-fria', 'result', NULL, NULL, NULL, NULL, '-30 %', 'Merma de producto en tránsito', 2),
-
-    -- Cargo Ágil
-    ('cargo-agil', 'result', NULL, NULL, NULL, NULL, '-22 %', 'Kilómetros recorridos por entrega', 1),
-    ('cargo-agil', 'result', NULL, NULL, NULL, NULL, '35', 'Flotillas cliente', 2),
-
-    -- Sensa Campo
-    ('sensa-campo', 'image', 'Estación en campo', NULL,
-        '/uploads/seed/sensa-campo/evidencia-1.png', 'Sensor de humedad instalado entre surcos de cultivo', NULL, NULL, 1),
-    ('sensa-campo', 'result', NULL, 'Promedio de 60 parcelas.', NULL, NULL, '-40 %', 'Consumo de agua de riego', 2),
-
-    -- Torre Alameda
-    ('torre-alameda', 'image', 'Fachada', NULL,
-        '/uploads/seed/torre-alameda/evidencia-1.png', 'Fachada de la Torre Alameda al atardecer', NULL, NULL, 1),
-    ('torre-alameda', 'image', 'Planta baja comercial', NULL,
-        '/uploads/seed/torre-alameda/evidencia-2.png', 'Locales comerciales en la planta baja de la torre', NULL, NULL, 2),
-    ('torre-alameda', 'result', NULL, NULL, NULL, NULL, '92 %', 'Ocupación al cierre del primer año', 3),
-
-    -- Hidro Pura (borrador)
-    ('hidro-pura', 'result', NULL, NULL, NULL, NULL, 'Fase 1', 'Due diligence en curso', 1),
-
-    -- Mercado Verde (pausado)
-    ('mercado-verde', 'result', NULL, NULL, NULL, NULL, '1,200', 'Productores registrados', 1)
-) AS v (project_slug, kind, title, description, image_path, alt_text,
-        metric_value, metric_label, sort_order)
+-- ---------------------------------------------------------------------
+-- Áreas de respaldo de cada proyecto
+-- ---------------------------------------------------------------------
+INSERT INTO project_support_areas (project_id, area_code)
+SELECT p.id, v.area_code
+FROM (VALUES
+    ('kuali-pagos', 'legal'), ('kuali-pagos', 'fiscal'), ('kuali-pagos', 'comercial'),
+    ('nodo-credito', 'marca'), ('nodo-credito', 'legal'),
+    ('raiz-analytics', 'comercial'), ('raiz-analytics', 'fiscal'),
+    ('cosecha-directa', 'marca'), ('cosecha-directa', 'comercial'),
+    ('clinica-lince', 'legal'), ('clinica-lince', 'fiscal'), ('clinica-lince', 'marca'),
+    ('dosis', 'legal'), ('dosis', 'fiscal'), ('dosis', 'comercial'), ('dosis', 'marca'),
+    ('ruta-fria', 'marca')
+) AS v (project_slug, area_code)
 JOIN projects p ON p.slug = v.project_slug;
 
 
 -- ---------------------------------------------------------------------
 -- Blog: etiquetas
 -- ---------------------------------------------------------------------
-INSERT INTO blog_tags (name, slug) VALUES
-    ('Inversión',       'inversion'),
-    ('Startups',        'startups'),
-    ('Sostenibilidad',  'sostenibilidad'),
-    ('Tecnología',      'tecnologia'),
-    ('Noticias',        'noticias'),
-    ('Guías',           'guias');
+INSERT INTO blog_tags (slug, name_es, name_en) VALUES
+    ('inversion',        'Inversión',         'Investment'),
+    ('venture-building', 'Venture building',  'Venture building'),
+    ('agrotech',         'Agrotech',          'Agrotech'),
+    ('salud-digital',    'Salud digital',     'Digital health'),
+    ('noticias',         'Noticias',          'News'),
+    ('guias',            'Guías',             'Guides');
 
 
 -- ---------------------------------------------------------------------
--- Blog: entradas
+-- Blog: entradas (ES/EN)
 --   · 3 publicadas (visibles en el sitio).
 --   · 1 programada (published con fecha futura → todavía no es pública).
---   · 1 borrador y 1 archivada (solo en el panel).
+--   · 1 borrador SIN versión en inglés (se permite hasta publicar).
+--   · 1 archivada.
 -- ---------------------------------------------------------------------
 INSERT INTO blog_posts
-    (title, slug, excerpt, content_markdown, cover_image_path, status,
+    (slug, title_es, title_en, excerpt_es, excerpt_en,
+     content_markdown_es, content_markdown_en, cover_image_path, status,
      published_at, reading_minutes, created_at, author_id, created_by, updated_by)
-SELECT v.title, v.slug, v.excerpt, v.content, v.cover, v.status,
+SELECT v.slug, v.title_es, v.title_en, v.excerpt_es, v.excerpt_en,
+       v.content_es, v.content_en, v.cover, v.status,
        v.published_at::timestamptz, v.reading_minutes, v.created_at::timestamptz,
        a.id, a.id, a.id
 FROM (VALUES
-    ('Cómo evaluamos una startup antes de invertir', 'como-evaluamos-una-startup',
-     'Los cinco criterios que revisamos en cada oportunidad, desde el equipo fundador hasta la economía unitaria.',
-     $md$Cada año revisamos cientos de propuestas y solo invertimos en unas cuantas. Estos son los criterios que aplicamos en **todas** las evaluaciones.
+    ('como-elegimos-que-empresa-construir',
+     'Cómo elegimos qué empresa construir',
+     'How we decide which company to build',
+     'Antes de crear una empresa nos hacemos cuatro preguntas. Así decidimos qué proyectos nacen dentro del grupo.',
+     'Before we create a company we ask four questions. This is how we decide which ventures are born inside the group.',
+     $md$En Grupo Ricartti no esperamos a que lleguen las ideas: **creamos nuestras propias empresas**. Antes de empezar, cada oportunidad pasa por cuatro preguntas.
 
-## 1. El equipo fundador
+## 1. ¿El problema es real y frecuente?
 
-Buscamos equipos que conozcan a fondo el problema que resuelven y que hayan demostrado capacidad de ejecución.
+Buscamos problemas que una persona o empresa enfrenta cada semana, no una vez al año.
 
-## 2. El tamaño del mercado
+## 2. ¿Podemos ganar en nuestra región?
 
-Preferimos mercados grandes o en crecimiento acelerado, donde una empresa pueda escalar sin depender de un solo cliente.
+Durango y el norte del país nos dan acceso a sectores como el agro, la salud y los servicios financieros para PyMEs.
 
-## 3. La economía unitaria
+## 3. ¿El grupo aporta una ventaja?
 
-- Costo de adquisición de clientes
-- Valor de vida del cliente
-- Margen bruto por unidad vendida
+Cada proyecto recibe desde el primer día:
 
-![Sesión de evaluación del comité de inversión](/uploads/seed/blog/como-evaluamos-una-startup/imagen-1.png)
+- Laboratorio de marca
+- Equipo legal
+- Equipo comercial
+- Equipo fiscal
 
-## 4. La tracción
+![Sesión de trabajo del comité de proyectos](/uploads/seed/blog/como-elegimos-que-empresa-construir/imagen-1.png)
 
-Las cifras de uso y de ingresos pesan más que las proyecciones.
+## 4. ¿Tiene un comprador natural?
 
-## 5. El encaje con nuestro portafolio
+Construimos pensando en la salida. [Kuali Pagos](/proyectos/kuali-pagos) nació con esa lógica.$md$,
+     $md$At Grupo Ricartti we don't wait for ideas to arrive: **we create our own companies**. Before we start, every opportunity goes through four questions.
 
-Valoramos las sinergias con empresas en las que ya invertimos, como [Nodo Pagos](/proyectos/nodo-pagos).
+## 1. Is the problem real and frequent?
 
-Si tu empresa cumple con estos criterios, escríbenos desde el formulario de contacto.$md$,
-     '/uploads/seed/blog/como-evaluamos-una-startup/portada.png', 'published',
-     '2026-08-20 15:00:00+00', 4, '2026-08-12 15:00:00+00', 'admin@gruporicartti.test'),
+We look for problems a person or company faces every week, not once a year.
 
-    ('Energía limpia: por qué apostamos por la generación distribuida', 'energia-limpia-generacion-distribuida',
-     'La generación solar en techos industriales reduce costos y emisiones. Te contamos qué aprendimos con Solaria Industrial.',
-     $md$La generación distribuida produce la energía cerca de donde se consume. Para la industria significa **costos predecibles** y menor dependencia de la red.
+## 2. Can we win in our region?
 
-## Lo que aprendimos
+Durango and northern Mexico give us access to sectors such as agriculture, health and financial services for SMBs.
 
-1. Los contratos de compra de energía a largo plazo dan certidumbre a ambas partes.
-2. El mantenimiento preventivo es tan importante como la instalación.
-3. Los parques industriales permiten escalar rápido con un solo interlocutor.
+## 3. Does the group bring an edge?
 
-Nuestra experiencia con [Solaria Industrial](/proyectos/solaria-industrial) confirmó que el modelo es rentable y replicable.$md$,
-     '/uploads/seed/blog/energia-limpia-generacion-distribuida/portada.png', 'published',
-     '2026-09-10 15:00:00+00', 3, '2026-09-01 15:00:00+00', 'operaciones@gruporicartti.test'),
+Every venture gets, from day one:
 
-    ('Grupo Ricartti cierra su primer fondo de coinversión', 'primer-fondo-de-coinversion',
-     'El nuevo vehículo permitirá a inversionistas ángel participar junto a Grupo Ricartti en rondas semilla y serie A.',
-     $md$Grupo Ricartti anunció el cierre de su primer fondo de coinversión, abierto a inversionistas ángel de la región.
+- Brand laboratory
+- Legal team
+- Commercial team
+- Tax team
 
-El fondo participará en rondas **semilla** y **serie A** de empresas de fintech, salud digital, energía limpia y logística.
+![Working session of the ventures committee](/uploads/seed/blog/como-elegimos-que-empresa-construir/imagen-1.png)
 
-> Queremos que más personas inviertan en las empresas que están transformando la región.
+## 4. Does it have a natural buyer?
 
-Las personas interesadas pueden escribirnos eligiendo la opción *coinversión* en el formulario de contacto.$md$,
-     '/uploads/seed/blog/primer-fondo-de-coinversion/portada.png', 'published',
-     '2026-10-05 15:00:00+00', 2, '2026-10-01 15:00:00+00', 'admin@gruporicartti.test'),
+We build with the exit in mind. [Kuali Pagos](/proyectos/kuali-pagos) was born with that logic.$md$,
+     '/uploads/seed/blog/como-elegimos-que-empresa-construir/cover.png', 'published',
+     '2026-08-20 15:00:00+00', 3, '2026-08-12 15:00:00+00', 'admin@gruporicartti.test'),
 
-    ('Tendencias fintech para la próxima década', 'tendencias-fintech-proxima-decada',
-     'Pagos instantáneos, crédito con datos alternativos y finanzas integradas: las tendencias que seguiremos de cerca.',
-     $md$Esta entrada está **programada**: tiene estado *publicada* pero su fecha de publicación es futura, por lo que todavía no aparece en el sitio.
+    ('lo-que-aprendimos-al-vender-dosis',
+     'Lo que aprendimos al vender Dosis',
+     'What we learned selling Dosis',
+     'Dosis fue nuestra primera salida. Compartimos tres lecciones sobre cómo preparar una empresa para su nuevo dueño.',
+     'Dosis was our first exit. Three lessons on preparing a company for its new owner.',
+     $md$En 2025 vendimos [Dosis](/proyectos/dosis) a un operador logístico nacional. Estas son tres lecciones del proceso.
 
-## Tendencias
+1. **Ordenar la información desde el inicio.** Con la contabilidad y los contratos al día, la revisión del comprador tomó semanas, no meses.
+2. **Medir lo que el comprador valora.** Las 140 sucursales y la reducción de merma fueron el centro de la negociación.
+3. **Preparar al equipo.** Una buena transición protege a los clientes y a las personas.
 
-- Pagos instantáneos entre cuentas
-- Crédito basado en datos alternativos
-- Finanzas integradas en plataformas no financieras$md$,
-     '/uploads/seed/blog/tendencias-fintech-proxima-decada/portada.png', 'published',
-     '2030-01-15 15:00:00+00', 2, '2026-10-20 15:00:00+00', 'admin@gruporicartti.test'),
+> Vender no es el final del proyecto: es el momento en que puede crecer con un nuevo dueño.$md$,
+     $md$In 2025 we sold [Dosis](/proyectos/dosis) to a national logistics operator. These are three lessons from the process.
 
-    ('Guía para preparar tu primera ronda de inversión', 'guia-primera-ronda-de-inversion',
-     'Documentos, métricas y errores comunes antes de presentar tu startup a un fondo.',
-     $md$Borrador en preparación.
+1. **Keep the records in order from the start.** With up-to-date accounting and contracts, the buyer's review took weeks, not months.
+2. **Measure what the buyer values.** The 140 branches and the drop in shrink were the core of the negotiation.
+3. **Prepare the team.** A good handover protects customers and people.
 
-## Documentos básicos
+> Selling is not the end of a venture: it is when it can grow with a new owner.$md$,
+     '/uploads/seed/blog/lo-que-aprendimos-al-vender-dosis/cover.png', 'published',
+     '2026-09-10 15:00:00+00', 2, '2026-09-01 15:00:00+00', 'operaciones@gruporicartti.test'),
 
-- Presentación para inversionistas
-- Modelo financiero a tres años
-- Tabla de capitalización$md$,
+    ('respaldo-legal-y-fiscal-desde-el-dia-uno',
+     'Respaldo legal y fiscal desde el día uno',
+     'Legal and tax backing from day one',
+     'Por qué cada proyecto del grupo nace con su constitución, contratos y contabilidad resueltos.',
+     'Why every group venture is born with its incorporation, contracts and accounting already in place.',
+     $md$Muchas empresas jóvenes fracasan por trámites, no por su producto. Por eso, en Grupo Ricartti **el papeleo ya está resuelto** antes de buscar clientes.
+
+## Lo que recibe cada proyecto
+
+- Constitución, contratos y propiedad intelectual
+- Contabilidad, cumplimiento y auditoría
+- Primeros clientes y canales de venta$md$,
+     $md$Many young companies fail because of paperwork, not their product. That is why at Grupo Ricartti **the paperwork is already done** before we look for customers.
+
+## What every venture gets
+
+- Incorporation, contracts and IP
+- Accounting, compliance and audit
+- First customers and sales channels$md$,
+     '/uploads/seed/blog/respaldo-legal-y-fiscal-desde-el-dia-uno/cover.png', 'published',
+     '2026-10-05 15:00:00+00', 1, '2026-10-01 15:00:00+00', 'admin@gruporicartti.test'),
+
+    ('agrotech-en-el-norte-de-mexico',
+     'Agrotech en el norte de México',
+     'Agrotech in northern Mexico',
+     'Las oportunidades que vemos en riego, cadena de frío y venta directa para productores.',
+     'The opportunities we see in irrigation, cold chain and direct sales for growers.',
+     $md$Esta entrada está **programada**: su fecha de publicación es futura, por lo que todavía no aparece en el sitio.$md$,
+     $md$This post is **scheduled**: its publication date is in the future, so it does not appear on the site yet.$md$,
+     '/uploads/seed/blog/agrotech-en-el-norte-de-mexico/cover.png', 'published',
+     '2030-01-15 15:00:00+00', 1, '2026-10-20 15:00:00+00', 'admin@gruporicartti.test'),
+
+    ('guia-para-presentar-tu-proyecto',
+     'Guía para presentar tu proyecto al grupo',
+     NULL,
+     'Qué información preparar antes de pedir que incubemos tu proyecto.',
+     NULL,
+     $md$Borrador en preparación. Falta la versión en inglés.
+
+## Información básica
+
+- Problema que resuelve
+- Primeros clientes o pilotos
+- Equipo fundador$md$,
+     NULL,
      NULL, 'draft',
      NULL, 1, '2026-10-25 15:00:00+00', 'operaciones@gruporicartti.test'),
 
-    ('Resultados del portafolio 2024', 'resultados-portafolio-2024',
-     'Resumen del desempeño del portafolio durante 2024.',
-     $md$Durante 2024 el portafolio creció en ingresos y logramos la primera salida con **Solaria Industrial**.
-
-Esta entrada está archivada y ya no se muestra en el sitio.$md$,
-     '/uploads/seed/blog/resultados-portafolio-2024/portada.png', 'archived',
-     '2025-01-20 15:00:00+00', 1, '2025-01-15 15:00:00+00', 'admin@gruporicartti.test')
-) AS v (title, slug, excerpt, content, cover, status,
-        published_at, reading_minutes, created_at, author_email)
+    ('resultados-del-portafolio-2025',
+     'Resultados del portafolio 2025',
+     'Portfolio results 2025',
+     'Resumen del año: una salida, dos proyectos en venture y dos nuevas incubaciones.',
+     'The year in review: one exit, two ventures scaling and two new incubations.',
+     $md$Durante 2025 vendimos **Dosis** e incubamos Nodo Crédito y Cosecha Directa. Esta entrada está archivada y ya no se muestra en el sitio.$md$,
+     $md$In 2025 we sold **Dosis** and incubated Nodo Crédito and Cosecha Directa. This post is archived and no longer shown on the site.$md$,
+     '/uploads/seed/blog/resultados-del-portafolio-2025/cover.png', 'archived',
+     '2026-01-20 15:00:00+00', 1, '2026-01-15 15:00:00+00', 'admin@gruporicartti.test')
+) AS v (slug, title_es, title_en, excerpt_es, excerpt_en, content_es, content_en,
+        cover, status, published_at, reading_minutes, created_at, author_email)
 JOIN admins a ON a.email = v.author_email;
 
 
@@ -309,17 +345,16 @@ JOIN admins a ON a.email = v.author_email;
 INSERT INTO blog_post_tags (post_id, tag_id)
 SELECT p.id, t.id
 FROM (VALUES
-    ('como-evaluamos-una-startup',            'inversion'),
-    ('como-evaluamos-una-startup',            'startups'),
-    ('como-evaluamos-una-startup',            'guias'),
-    ('energia-limpia-generacion-distribuida', 'sostenibilidad'),
-    ('energia-limpia-generacion-distribuida', 'inversion'),
-    ('primer-fondo-de-coinversion',           'noticias'),
-    ('tendencias-fintech-proxima-decada',     'tecnologia'),
-    ('tendencias-fintech-proxima-decada',     'startups'),
-    ('guia-primera-ronda-de-inversion',       'guias'),
-    ('guia-primera-ronda-de-inversion',       'startups'),
-    ('resultados-portafolio-2024',            'noticias')
+    ('como-elegimos-que-empresa-construir',      'venture-building'),
+    ('como-elegimos-que-empresa-construir',      'inversion'),
+    ('como-elegimos-que-empresa-construir',      'guias'),
+    ('lo-que-aprendimos-al-vender-dosis',        'salud-digital'),
+    ('lo-que-aprendimos-al-vender-dosis',        'inversion'),
+    ('lo-que-aprendimos-al-vender-dosis',        'noticias'),
+    ('respaldo-legal-y-fiscal-desde-el-dia-uno', 'venture-building'),
+    ('agrotech-en-el-norte-de-mexico',           'agrotech'),
+    ('guia-para-presentar-tu-proyecto',          'guias'),
+    ('resultados-del-portafolio-2025',           'noticias')
 ) AS v (post_slug, tag_slug)
 JOIN blog_posts p ON p.slug = v.post_slug
 JOIN blog_tags  t ON t.slug = v.tag_slug;
@@ -329,31 +364,30 @@ JOIN blog_tags  t ON t.slug = v.tag_slug;
 -- Formularios (ejemplos para la bandeja del panel).
 -- IPs del rango de documentación 192.0.2.0/24 (RFC 5737).
 -- ---------------------------------------------------------------------
-INSERT INTO client_inquiries
-    (full_name, email, phone, company, inquiry_type, message,
+INSERT INTO client_leads
+    (full_name, company, email, phone, interest, message, lang,
      privacy_accepted_at, status, ip_address, user_agent, created_at)
 VALUES
-    ('Laura Méndez', 'laura.mendez@ejemplo.test', '+52 55 1234 5678', 'Agua Clara Tech',
-     'funding', 'Buscamos una ronda semilla para escalar nuestra solución de medición inteligente de agua.',
+    ('Laura Méndez', 'Fondo Altiplano', 'laura.mendez@ejemplo.test', '+52 618 123 4567',
+     'acquire', 'Nos interesa conocer las condiciones para adquirir Raíz Analytics.', 'es',
      '2026-10-01 17:20:00+00', 'new', '192.0.2.10', 'Mozilla/5.0 (seed)', '2026-10-01 17:20:00+00'),
-    ('Jorge Ibarra', 'jorge.ibarra@ejemplo.test', NULL, 'Grupo Logístico del Bajío',
-     'partnership', 'Nos interesa una alianza para integrar a Ruta Fría en nuestra red de distribución.',
+    ('Jorge Ibarra', 'Ibarra Capital', 'jorge.ibarra@ejemplo.test', NULL,
+     'coinvest', 'Quisiera participar en la próxima ronda de Kuali Pagos.', 'es',
      '2026-10-12 19:05:00+00', 'reviewed', '192.0.2.11', 'Mozilla/5.0 (seed)', '2026-10-12 19:05:00+00'),
-    ('Sofía Treviño', 'sofia.trevino@ejemplo.test', '+52 81 8765 4321', NULL,
-     'co_investment', 'Soy inversionista ángel y me gustaría conocer las próximas oportunidades de coinversión.',
+    ('Emily Carter', 'Northbridge Foods', 'emily.carter@example.test', '+1 512 555 0142',
+     'incubate', 'We have a cold-storage concept for Durango growers and would like the group to incubate it.', 'en',
      '2026-10-20 14:45:00+00', 'contacted', '192.0.2.12', 'Mozilla/5.0 (seed)', '2026-10-20 14:45:00+00');
 
-INSERT INTO job_applications
-    (full_name, email, phone, area_of_interest, linkedin_url, portfolio_url, message,
+INSERT INTO talent_applications
+    (full_name, email, area, profile_url, message, lang,
      privacy_accepted_at, status, ip_address, user_agent, created_at)
 VALUES
-    ('Daniel Ortega', 'daniel.ortega@ejemplo.test', '+52 33 2222 3333', 'investment_analysis',
-     'https://www.linkedin.com/in/daniel-ortega-ejemplo', NULL,
-     'Tengo cuatro años de experiencia en análisis de inversiones y me interesa el sector de energía limpia.',
+    ('Daniel Ortega', 'daniel.ortega@ejemplo.test', 'engineering',
+     'https://www.linkedin.com/in/daniel-ortega-ejemplo',
+     'Desarrollador backend con cuatro años de experiencia en fintech.', 'es',
      '2026-10-05 16:10:00+00', 'new', '192.0.2.20', 'Mozilla/5.0 (seed)', '2026-10-05 16:10:00+00'),
-    ('Valeria Cruz', 'valeria.cruz@ejemplo.test', NULL, 'technology',
-     NULL, 'https://portafolio-valeria.ejemplo.test',
-     'Desarrolladora fullstack con interés en apoyar la evaluación técnica de startups del portafolio.',
+    ('Valeria Cruz', 'valeria.cruz@ejemplo.test', 'brand',
+     NULL, NULL, 'es',
      '2026-10-18 21:30:00+00', 'shortlisted', '192.0.2.21', 'Mozilla/5.0 (seed)', '2026-10-18 21:30:00+00');
 
 COMMIT;

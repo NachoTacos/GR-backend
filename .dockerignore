@@ -1,0 +1,17 @@
+# Solo el código de la API entra en la imagen. Nunca secretos ni datos.
+.env
+.env.*
+!.env.example
+.git
+.vs
+.vscode
+.claude
+**/bin
+**/obj
+uploads
+private
+database
+docs
+scripts
+*.md
+docker-compose.yml

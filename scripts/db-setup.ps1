@@ -141,7 +141,7 @@ try {
     # --- 7. Verificacion ------------------------------------------------
     Step "Verificando..."
     Invoke-Psql @('-d', $DbName, '-c',
-        "SELECT (SELECT count(*) FROM admins) AS admins, (SELECT count(*) FROM projects) AS proyectos, (SELECT count(*) FROM projects WHERE is_visible) AS visibles, (SELECT count(*) FROM project_evidences) AS evidencias, (SELECT count(*) FROM blog_posts) AS entradas_blog, (SELECT count(*) FROM blog_posts WHERE status = 'published' AND published_at <= now()) AS blog_publicas")
+        "SELECT (SELECT count(*) FROM admins) AS admins, (SELECT count(*) FROM projects) AS proyectos, (SELECT count(*) FROM projects WHERE is_visible) AS visibles, (SELECT count(*) FROM project_images) AS imagenes, (SELECT count(*) FROM project_results) AS resultados, (SELECT count(*) FROM blog_posts) AS entradas_blog, (SELECT count(*) FROM blog_posts WHERE status = 'published' AND published_at <= now()) AS blog_publicas")
 
     Write-Host ""
     Write-Host "Base de datos '$DbName' lista." -ForegroundColor Green

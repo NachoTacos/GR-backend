@@ -1,18 +1,22 @@
 # Arquitectura — Landing, Galería de Proyectos y Blog · Grupo Ricartti
 
 > Documento de arquitectura del sistema completo, que abarca los repositorios **GR-backend** y **GR-frontend**. Describe las capas, la API, el modelo de seguridad y las decisiones técnicas. Para instalar y ejecutar, consulta el [README](../README.md). El detalle del esquema relacional está en [DATABASE.md](DATABASE.md).
+>
+> **Diseño y contrato del frontend:** el **handoff de Grupo Ricartti** (`HANDOFF-grupo-ricartti.md` y su asset pack) es la fuente de verdad del sitio, del panel, de los textos ES/EN y del contrato de la API (§9 del handoff). Este documento lo implementa y señala dónde se extiende; por ejemplo, el blog no forma parte del handoff.
 
 ---
 
 ## 1. Alcance
 
+El sitio es **bilingüe** (español por defecto, inglés) para un *venture builder* con sede en Durango: crea, incuba, financia y vende sus propias empresas.
+
 | Módulo | Descripción |
 |---|---|
-| **Galería pública** | Tarjetas con imagen, nombre, categoría y descripción breve. Al abrir una tarjeta se muestra el detalle del proyecto con sus evidencias (imágenes o resultados). Los filtros, la búsqueda, el orden y la paginación se resuelven en el servidor. |
-| **Blog** | Entradas con portada, extracto, contenido con formato (Markdown), autor, etiquetas y tiempo de lectura. Tiene listado con filtro por etiqueta, búsqueda y paginación en el servidor, y una página de detalle. La landing muestra las tres entradas más recientes. |
-| **Formulario de clientes** | Contacto para personas o empresas interesadas en Grupo Ricartti (busco inversión, alianza, coinversión, otro). |
-| **Formulario de talento** | Postulación para personas interesadas en trabajar en Grupo Ricartti. |
-| **Panel de administración** | Ruta protegida con un menú lateral: **Proyectos** (crear, editar, ocultar o publicar, y gestionar evidencias), **Blog** (redactar, editar, previsualizar, publicar, programar y archivar entradas) y, de forma opcional, **Mensajes** (bandejas de los formularios). |
+| **Galería pública** | Tarjetas con portada, nombre, categoría, etapa y descripción breve. Al abrir una tarjeta se abre el detalle (diálogo) con descripción, resultados, evidencias en imagen y áreas de respaldo del grupo. El filtro por categoría se resuelve en el servidor. |
+| **Blog** *(extensión al handoff)* | Entradas bilingües con portada, extracto, contenido en Markdown, autor, etiquetas y tiempo de lectura. Filtro por etiqueta, búsqueda y paginación en el servidor. |
+| **Formulario de clientes** | Clientes, inversionistas y compradores. Interés: adquirir un proyecto, coinvertir, incubar o contratar servicios. |
+| **Formulario de talento** | Postulación con área, LinkedIn o portafolio opcional y **CV en PDF opcional (≤ 5 MB)**. |
+| **Panel de administración** | Ruta protegida con menú lateral: **Proyectos** (crear, editar con textos ES/EN, ocultar o publicar, y gestionar resultados, evidencias y áreas de respaldo), **Blog** (redactar en ES/EN, previsualizar, publicar, programar y archivar) y, de forma opcional, **Mensajes** (bandejas de los formularios, con descarga de CV). |
 
 **Restricciones del proyecto:**
 
@@ -28,12 +32,12 @@
 
 | Capa | Tecnología | Motivo |
 |---|---|---|
-| Frontend | **Angular** (versión estable vigente, componentes standalone y signals) + **Tailwind CSS** | Escapa la salida por defecto (XSS) y sanea `[innerHTML]`, trae formularios reactivos y su `HttpClient` incluye protección XSRF. Tailwind permite trasladar el diseño visual sin pelear con una librería de componentes. |
+| Frontend | **Angular** (versión estable vigente, componentes standalone y signals) + **CSS plano** con los tokens del handoff (`tokens.css`, `reference.css`), **sin Tailwind ni librerías de UI** | Escapa la salida por defecto (XSS) y sanea `[innerHTML]`, trae formularios reactivos y su `HttpClient` incluye protección XSRF. El handoff recomienda React, pero también indica usar lo que el equipo ya tenga; se eligió Angular. Sus reglas visuales se respetan tal cual: sin Tailwind y con los tokens CSS 1:1. |
 | Backend | **ASP.NET Core 10 (LTS)**, Web API con controladores | Rate limiting nativo, una canalización de autenticación extensible, EF Core con consultas parametrizadas y una separación en capas sencilla mediante proyectos. |
 | Acceso a datos | **Entity Framework Core 10** + **Npgsql** | ORM: no se escribe SQL concatenado en ningún punto. |
 | Base de datos | **PostgreSQL 17** | Restricciones completas (FK, `CHECK`, índices parciales), `pg_dump` genera un `.sql` plano y corre igual en Windows, macOS, Linux y Docker. |
 | Hash de contraseñas | **BCrypt.Net-Next** (factor 12) | Requisito explícito: bcrypt. |
-| Validación | **FluentValidation** | Reglas declarativas y comprobables por DTO. |
+| Validación | Validadores propios (`FieldValidator`), sin librerías | Cada regla refleja un `CHECK` de la BD y devuelve los códigos del contrato (`required`, `email`, `consent`, `url`, `invalid`, `file_type`). Son pocas reglas y así el equipo no depende de otra herramienta. |
 | Contenido del blog | **Markdig** (Markdown → HTML, con HTML crudo deshabilitado) + **HtmlSanitizer** (lista blanca) | Los administradores escriben con formato sin poder inyectar HTML ni scripts. |
 | Orquestación local | **Docker Compose** (opcional) | Un solo comando levanta la base de datos, la API y el frontend. |
 
@@ -155,29 +159,30 @@ GR-frontend/
 | **Rutas** | `Ricartti.Api` | Controladores (traducen HTTP ↔ DTO), autenticación, políticas de rate limiting, cabeceras de seguridad, manejo global de errores, carga y validación de configuración | Reglas de negocio ni acceso a `DbContext` |
 | **Lógica** | `Ricartti.Application` | Servicios de caso de uso (`GalleryService`, `AdminProjectService`, `BlogService`, `AdminBlogService`, `FormSubmissionService`, `AuthService`), DTO de entrada y salida, validadores FluentValidation, interfaces (repositorios, almacenamiento, hashing, reloj, `IContentRenderer`) y el tipo `Result<T>` | Referencias a EF Core, ASP.NET, Markdig o al sistema de archivos |
 | **Acceso a datos** | `Ricartti.Infrastructure` | `RicarttiDbContext`, configuraciones Fluent API (mapean el esquema SQL existente), repositorios, `BcryptPasswordHasher`, `LocalFileStorage`, validación de firmas de imagen y `MarkdownContentRenderer` (Markdig + HtmlSanitizer) | Decisiones de negocio |
-| **Dominio** | `Ricartti.Domain` | Entidades (`Admin`, `AdminSession`, `Category`, `Project`, `ProjectEvidence`, `BlogPost`, `BlogTag`, `ClientInquiry`, `JobApplication`) y enums (`EvidenceKind`, `BlogPostStatus`…) | Dependencias externas |
+| **Dominio** | `Ricartti.Domain` | Entidades (`Admin`, `AdminSession`, `Category`, `SupportArea`, `Project`, `ProjectImage`, `ProjectResult`, `BlogPost`, `BlogTag`, `ClientLead`, `TalentApplication`), el valor `Localized { Es, En }` y enums (`ProjectStage`, `BlogPostStatus`, `LeadInterest`, `TalentArea`…) | Dependencias externas |
 
 **Regla de dependencias:** `Api → Application → Domain` e `Infrastructure → Application`. `Api` referencia a `Infrastructure` solo para registrar la inyección de dependencias en `Program.cs`. Los controladores no ven el `DbContext`.
 
 ### 5.2 Flujo de una petición (ejemplo: galería pública)
 
 ```
-GET /api/projects?category=fintech&q=pagos&sort=recent&page=1&pageSize=6
+GET /api/projects?category=fintech
   │
   ├─ Middleware: cabeceras de seguridad → rate limit global → autenticación (anónima)
   ├─ ProjectsController.List(GalleryQueryRequest)          [Api]
-  │     └─ GalleryQueryValidator                           [Application]  → 400 si es inválido
-  ├─ GalleryService.SearchAsync(query)                     [Application]
-  │     └─ IProjectRepository.SearchVisibleAsync(...)      [Infrastructure]
-  │           └─ EF Core → SELECT … WHERE is_visible AND category.slug = @p0 AND title ILIKE @p1 …
-  └─ 200 { items: [...], page, pageSize, totalItems, totalPages }
+  │     └─ GalleryQueryValidator                           [Application]  → 422 si es inválido
+  ├─ GalleryService.ListVisibleAsync(query)                [Application]
+  │     └─ IProjectRepository.ListVisibleAsync(...)        [Infrastructure]
+  │           └─ EF Core → SELECT … WHERE is_visible AND category.slug = @p0 ORDER BY sort_order, year DESC
+  └─ 200 Project[]   (contrato del handoff §9: textos como { es, en })
 ```
 
 ### 5.3 Convenciones transversales
 
 - **DTO en los límites.** Las entidades nunca se serializan directamente. Cada endpoint tiene un DTO de entrada y otro de salida, lo que evita la asignación masiva (*over-posting*) y la fuga de columnas internas.
 - **`Result<T>` en vez de excepciones** para los errores esperados (`NotFound`, `Validation`, `Conflict`, `Unauthorized`). El controlador traduce cada uno a su código HTTP.
-- **Errores con formato uniforme.** Todas las respuestas de error usan `ProblemDetails` (RFC 9457). Las de validación incluyen un diccionario `errors` por campo. Fuera de `Development` no se exponen *stack traces*.
+- **Errores con formato uniforme.** Los errores de validación responden **422** con `{ "errors": { "<campo>": "<código>" } }`, como pide el handoff. Los códigos son `required`, `email`, `consent`, `url`, `file_type` y `file_size`, y el frontend los traduce. El resto de errores usa `ProblemDetails` (RFC 9457). Fuera de `Development` no se exponen *stack traces*.
+- **Textos bilingües.** La base de datos guarda `<campo>_es` / `<campo>_en`, y la API los expone como objetos `Localized { es, en }`. El frontend elige el idioma, por lo que una sola respuesta sirve para ES y EN.
 - **Fechas en UTC.** Se guardan como `timestamptz` y se generan desde un `IClock` inyectado, lo que permite probar la lógica temporal (por ejemplo, las entradas programadas).
 - **Normalización.** Se recortan espacios y los correos se guardan en minúsculas. Se hace en la capa de aplicación y la base de datos lo verifica con `CHECK`.
 
@@ -185,30 +190,48 @@ GET /api/projects?category=fintech&q=pagos&sort=recent&page=1&pageSize=6
 
 ## 6. API
 
-Respuestas en JSON. La paginación sigue siempre el formato `{ items, page, pageSize, totalItems, totalPages }`.
+Las respuestas son JSON. **Las rutas y las formas marcadas como *handoff* siguen exactamente el contrato del handoff (§9)**; las demás son extensiones de este proyecto (blog, salud, antiforgery, bandejas).
+
+Formas principales del contrato:
+
+```ts
+type Localized = { es: string; en: string };
+interface Category { id: string /* slug */; name: Localized; order: number }
+interface Project {
+  id: number; slug: string; category: string; stage: 'incubacion' | 'venture' | 'exit';
+  year: number; name: string; visible: boolean;
+  summary: Localized; description: Localized; cover: string;
+  evidence: { src: string; caption: Localized }[];
+  results: { value: string; label: Localized }[];
+  support: ('legal' | 'fiscal' | 'comercial' | 'marca')[];
+  updatedAt: string;
+}
+```
 
 ### 6.1 Pública
 
+| Método | Ruta | Origen | Descripción | Rate limit |
+|---|---|---|---|---|
+| GET | `/api/health` | extensión | Estado de la API y de la conexión a la BD | global |
+| GET | `/api/antiforgery/token` | extensión | Emite la cookie `XSRF-TOKEN` | global |
+| GET | `/api/categories` | handoff | `Category[]` activas, ordenadas por `order`. Incluye además `count`, el número de proyectos visibles, para los chips del filtro | global |
+| GET | `/api/projects?category=<id>` | handoff | `Project[]` **solo visibles**, ordenados por `sort_order` y `year DESC`. El filtro se resuelve en el servidor (§7) | global |
+| GET | `/api/projects/{slug}` | handoff | `Project`, o **404** si no existe **o está oculto** | global |
+| GET | `/api/blog/posts` | extensión | Entradas publicadas: `tag`, `q`, `page`, `pageSize` (ver §8) | global |
+| GET | `/api/blog/posts/{slug}` | extensión | Detalle con `contentHtml` saneado (ES y EN), autor, etiquetas y tiempo de lectura. 404 si no existe, es borrador, está programada o archivada | global |
+| GET | `/api/blog/tags` | extensión | Etiquetas con el número de entradas publicadas de cada una | global |
+| POST | `/api/leads/client` | handoff | JSON `{ name, company, email, phone?, interest, message, consent: true, website: "" }` → `201 { id }`, `422 { errors }`, `429` | **forms** |
+| POST | `/api/leads/talent` | handoff | `multipart/form-data` `{ name, email, area, link?, cv?, message?, consent, website }` → `201`, `422`, `413` (CV > 5 MB), `429` | **forms** |
+
+`website` es el **honeypot**. Si llega con contenido, la API responde `201` sin guardar nada, para no darle pistas al bot. Ambos formularios guardan también el idioma activo (`lang`), para responder en el mismo.
+
+### 6.2 Autenticación (handoff)
+
 | Método | Ruta | Descripción | Rate limit |
 |---|---|---|---|
-| GET | `/api/health` | Estado de la API y de la conexión a la BD | global |
-| GET | `/api/antiforgery/token` | Emite la cookie `XSRF-TOKEN` | global |
-| GET | `/api/categories` | Categorías activas, con el número de proyectos visibles de cada una | global |
-| GET | `/api/projects` | Galería: filtros, búsqueda, orden y paginación (ver §7) | global |
-| GET | `/api/projects/{slug}` | Detalle del proyecto con sus evidencias. 404 si no existe **o está oculto** | global |
-| GET | `/api/blog/posts` | Entradas publicadas: `tag`, `q`, `page`, `pageSize` (ver §8) | global |
-| GET | `/api/blog/posts/{slug}` | Detalle con `contentHtml` saneado, autor, etiquetas y tiempo de lectura. 404 si no existe, es borrador, está programada o archivada | global |
-| GET | `/api/blog/tags` | Etiquetas con el número de entradas publicadas de cada una | global |
-| POST | `/api/forms/client-inquiries` | Formulario de clientes | **forms** |
-| POST | `/api/forms/job-applications` | Formulario de talento | **forms** |
-
-### 6.2 Autenticación
-
-| Método | Ruta | Descripción | Rate limit |
-|---|---|---|---|
-| POST | `/api/auth/login` | `{ email, password }` → cookie de sesión. 401 con mensaje genérico ante cualquier fallo | **login** |
-| POST | `/api/auth/logout` | Revoca la sesión actual y borra la cookie | global |
-| GET | `/api/auth/me` | Administrador autenticado, o 401. Lo usa el guard del frontend | global |
+| POST | `/api/auth/login` | `{ email, password }` → `204` + cookie de sesión `HttpOnly`. `401` con mensaje genérico ante cualquier fallo | **login** |
+| POST | `/api/auth/logout` | Revoca la sesión actual y borra la cookie → `204`. Siempre es POST, nunca GET (handoff §6.17) | global |
+| GET | `/api/auth/me` | `{ email }` del administrador autenticado, o `401`. Lo usa el guard del frontend | global |
 
 ### 6.3 Administración (todas requieren sesión)
 
@@ -218,17 +241,13 @@ Toda ruta bajo `/api/admin/*` exige la política `AdminOnly`. Se aplica a nivel 
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| GET | `/api/admin/projects` | Lista con filtros `q`, `category`, `visibility=all\|visible\|hidden` y paginación |
-| GET | `/api/admin/projects/{id}` | Detalle editable, incluye `version` para control de concurrencia |
-| POST | `/api/admin/projects` | Crea un proyecto (siempre oculto al crearse) |
-| PUT | `/api/admin/projects/{id}` | Edita los datos. Exige `version`; responde 409 si otro administrador lo modificó antes |
-| PATCH | `/api/admin/projects/{id}/visibility` | `{ isVisible, version }`. Publicar exige portada; la primera publicación fija `published_at` |
-| PUT | `/api/admin/projects/{id}/cover` | `multipart/form-data`: sube o reemplaza la portada |
-| POST | `/api/admin/projects/{id}/evidences/images` | `multipart/form-data`: imagen + `altText`, `title`, `description` |
-| POST | `/api/admin/projects/{id}/evidences/results` | JSON: `metricValue`, `metricLabel`, `title`, `description` |
-| PUT | `/api/admin/projects/{id}/evidences/{evidenceId}` | Edita los textos o el orden de una evidencia |
-| DELETE | `/api/admin/projects/{id}/evidences/{evidenceId}` | Elimina la evidencia y su archivo |
-| GET | `/api/admin/categories` | Todas las categorías, para los selectores del formulario |
+| GET | `/api/admin/projects` | *handoff*: `Project[]` **todos**, incluidos los ocultos. La búsqueda por nombre se hace en el cliente |
+| GET | `/api/admin/projects/{id}` | *handoff*: `Project`, más `version` para el control de concurrencia |
+| POST | `/api/admin/projects` | *handoff*: `multipart/form-data` con los campos del proyecto como JSON en `data`, más `cover` y `evidence[]` → `201 Project`. Se crea oculto |
+| PUT | `/api/admin/projects/{id}` | *handoff*: mismo formato que POST → `200 Project`. Exige `version` y responde 409 si otro administrador lo modificó antes. Reemplaza resultados, áreas y evidencias en una sola transacción |
+| PATCH | `/api/admin/projects/{id}` | *handoff*: `{ visible: boolean }` → `200 Project`. Publicar exige portada y los textos en ES y EN; si falta algo responde `422` con el campo que falta |
+| GET | `/api/admin/categories` | Todas las categorías, incluidas las inactivas, para los selectores del editor |
+| GET | `/api/admin/support-areas` | Catálogo de áreas de respaldo |
 
 **Blog**
 
@@ -248,8 +267,9 @@ Toda ruta bajo `/api/admin/*` exige la política `AdminOnly`. Se aplica a nivel 
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| GET | `/api/admin/client-inquiries` | Bandeja de mensajes de clientes |
-| GET | `/api/admin/job-applications` | Bandeja de postulaciones |
+| GET | `/api/admin/leads/client` | Bandeja de clientes e inversionistas |
+| GET | `/api/admin/leads/talent` | Bandeja de postulaciones |
+| GET | `/api/admin/leads/talent/{id}/cv` | Descarga el CV en PDF desde el almacenamiento privado, con `Content-Disposition: attachment`. Solo con sesión |
 
 > Los proyectos y las entradas del blog **no se borran**: los proyectos se ocultan y las entradas se archivan. Así se conserva el historial y se evitan borrados accidentales entre varios administradores.
 
@@ -257,17 +277,16 @@ Toda ruta bajo `/api/admin/*` exige la política `AdminOnly`. Se aplica a nivel 
 
 ## 7. Galería: filtros en el servidor
 
-`GET /api/projects` acepta los siguientes parámetros. Cualquier valor fuera de estas reglas devuelve **400**:
+`GET /api/projects` sigue el contrato del handoff: un arreglo `Project[]`, **sin paginación**. El portafolio es pequeño y el frontend muestra todos los proyectos de la categoría elegida.
 
 | Parámetro | Regla | Uso |
 |---|---|---|
-| `category` | slug `^[a-z0-9-]{1,60}$`, opcional | `categories.slug = @p` (categoría activa) |
-| `q` | texto opcional de hasta 100 caracteres, recortado | `unaccent(title) ILIKE unaccent(@p)` y lo mismo sobre `summary` ("credito" encuentra "Crédito"). Se escapan `%`, `_` y `\` antes de pasarlo como parámetro |
-| `sort` | `featured` (por defecto) \| `recent` \| `name` | Lista blanca → `ORDER BY` fijo en el código. El valor nunca se interpola |
-| `page` | entero ≥ 1 (por defecto 1) | `OFFSET` |
-| `pageSize` | entero de 1 a 24 (por defecto 6) | `LIMIT` |
+| `category` | slug `^[a-z0-9-]{1,40}$`, opcional. Un valor con formato inválido → `422`; una categoría inexistente → `[]` | `categories.slug = @p AND categories.is_active` |
 
-Siempre se aplica `is_visible = true`, sin importar los parámetros. El frontend guarda el estado de los filtros en la URL (`?category=…&q=…`), de modo que una búsqueda se puede compartir y el botón Atrás funciona. Cada cambio dispara una nueva consulta a la API; la búsqueda por texto espera 300 ms sin escribir antes de enviarse.
+- **Siempre** se aplica `is_visible = true`, sin importar los parámetros. Un proyecto oculto no aparece ni en el listado ni en `GET /api/projects/{slug}`, que responde 404.
+- El orden es fijo en el código: `sort_order`, después `year DESC`.
+- El frontend guarda el filtro en la URL como `?categoria=<id>` (handoff §6.6), de modo que se puede compartir y sobrevive al botón Atrás. Cada cambio dispara una nueva consulta a la API: **el filtro se resuelve en el servidor**.
+- Los conteos de los chips salen de `GET /api/categories`.
 
 ---
 
@@ -293,13 +312,14 @@ Siempre se aplica `is_visible = true`, sin importar los parámetros. El frontend
 **Reglas de publicación:**
 
 - El estado *programada* no es un valor aparte: se deriva de `published_at`. Una entrada programada aparece sola en el sitio al llegar su fecha, sin procesos en segundo plano, porque la consulta pública siempre filtra `status = 'published' AND published_at <= now()`.
-- Para publicar hacen falta título, extracto, contenido y **portada**. La regla se valida en el servicio y la base de datos la refuerza con un `CHECK`.
+- Para publicar hacen falta **portada** y el título, el extracto y el contenido **en español y en inglés**. Un borrador puede guardarse solo en español. La regla se valida en el servicio y la base de datos la refuerza con un `CHECK`.
+- El editor tiene pestañas ES/EN, igual que el editor de proyectos del handoff, y el sitio muestra el idioma activo.
 - Si al publicar no se envía `publishedAt`, se usa la fecha actual. Al volver a publicar una entrada archivada se conserva su fecha original.
 - El autor es el administrador que creó la entrada. Si su cuenta se elimina, el sitio muestra "Grupo Ricartti".
 
 ### 8.2 Contenido: Markdown renderizado de forma segura
 
-El contenido se guarda **solo en Markdown** (`content_markdown`), que es la única fuente de verdad. El HTML se genera en la API al leer la entrada:
+El contenido se guarda **solo en Markdown** (`content_markdown_es` / `content_markdown_en`), que es la única fuente de verdad. El HTML se genera en la API al leer la entrada:
 
 1. **Markdig** convierte Markdown a HTML con el **HTML crudo deshabilitado**: cualquier `<script>` o `<div onclick>` escrito en el texto se muestra como texto literal. Los `#` se rebajan a `<h2>`, porque el `<h1>` de la página es el título de la entrada.
 2. **HtmlSanitizer** filtra el resultado con una lista blanca:
@@ -360,8 +380,8 @@ Un `SessionAuthenticationHandler` propio lee la cookie, calcula su hash y busca 
 
 ### 9.3 CSRF
 
-- La cookie de sesión es `SameSite=Strict`, así que otro sitio no puede hacer que el navegador la envíe.
-- Además, **antiforgery de ASP.NET Core** en todo `POST/PUT/PATCH/DELETE`: la API emite la cookie legible `XSRF-TOKEN` y espera la cabecera `X-XSRF-TOKEN`. Angular `HttpClient` hace esto de forma automática para URL relativas.
+- La cookie de sesión es `SameSite=Strict`, así que otro sitio no puede hacer que el navegador la envíe. El handoff pide `Lax` como mínimo; `Strict` es más restrictivo y compatible con la SPA, porque todas las peticiones de la API son del mismo sitio.
+- Además, **antiforgery de ASP.NET Core** en el login y en todo `POST/PUT/PATCH/DELETE` bajo `/api/admin` (lote 4). **Los formularios públicos (`/api/leads/*`) no lo exigen**: son anónimos, no usan la sesión, no hay nada que un tercero pueda hacer en nombre del usuario, y los protegen el honeypot y el límite de peticiones. Para el resto: la API emite la cookie legible `XSRF-TOKEN` y espera la cabecera `X-XSRF-TOKEN`. Angular `HttpClient` hace esto de forma automática para URL relativas.
 - El token antiforgery está ligado a la identidad, por lo que el frontend **pide uno nuevo después del login y del logout**.
 
 ### 9.4 Frontend
@@ -374,7 +394,7 @@ Un `SessionAuthenticationHandler` propio lee la cookie, calcula su hash y busca 
 
 | # | Requisito | Implementación | Dónde |
 |---|---|---|---|
-| 1 | Validación de entradas en el servidor | FluentValidation para cada DTO: longitudes iguales a las de la BD, formatos (correo, teléfono, URL `https`, slug), valores de enums en lista blanca, rechazo de caracteres de control, máximo 5 etiquetas por entrada y fechas de programación válidas. Las subidas se validan por tamaño, MIME **y firma binaria** (magic bytes). Además hay restricciones `CHECK` en la BD como última barrera | `Application/*/Validators`, `Infrastructure/Storage`, `01_schema.sql` |
+| 1 | Validación de entradas en el servidor | Validadores de campo en la capa de aplicación para cada formulario: longitudes iguales a las de la BD, formatos (correo, teléfono, URL `https`, slug), valores de enums en lista blanca, rechazo de caracteres de control, máximo 5 etiquetas por entrada y fechas de programación válidas. Las subidas se validan por tamaño, MIME **y firma binaria** (magic bytes). Además hay restricciones `CHECK` en la BD como última barrera | `Application/*/Validators`, `Infrastructure/Storage`, `01_schema.sql` |
 | 2 | Consultas parametrizadas u ORM | Todo el acceso pasa por EF Core con LINQ. No se usa `FromSqlRaw` con interpolación. Los parámetros de orden se resuelven con una lista blanca, y `ILIKE` va por `EF.Functions.ILike` con el patrón escapado | `Infrastructure/Persistence` |
 | 3 | Contraseñas con hash y sesión segura con expiración | bcrypt, factor 12. Tokens de sesión de 256 bits guardados como hash. Expiración deslizante de 30 min y absoluta de 8 h, con revocación inmediata | `Infrastructure/Security`, `Api/Auth`, tabla `admin_sessions` |
 | 5 | Rutas de administración inaccesibles sin autenticación | Política `AdminOnly` aplicada al grupo `/api/admin`, más un test que recorre todas las rutas y verifica que responden 401 sin sesión. Las rutas de Angular están detrás del guard | `Api/Controllers/Admin`, `UnitTests` |
@@ -414,7 +434,12 @@ Un `SessionAuthenticationHandler` propio lee la cookie, calcula su hash y busca 
   - `UPLOADS_PATH/blog/{postId}/{guid}.{ext}`: portadas e imágenes del cuerpo de las entradas.
 - Se validan el tamaño (≤ 5 MB por defecto), la extensión, el MIME y la **firma binaria**: JPEG `FF D8 FF`, PNG `89 50 4E 47`, WebP `RIFF....WEBP`.
 - La API los sirve bajo `/uploads` con `nosniff`. En Docker, Nginx redirige `/uploads` a la API.
-- Las imágenes del seed viven en `uploads/seed/` (proyectos y `blog/`) y están versionadas; las subidas en tiempo de ejecución están en `.gitignore`.
+- Las imágenes del seed viven en `uploads/seed/` y están versionadas; las subidas en tiempo de ejecución están en `.gitignore`. Las de proyectos son los WebP del asset pack del handoff; las del blog son PNG generados en el mismo estilo.
+- **CV de postulantes (PDF ≤ 5 MB):**
+  - Se validan la firma `%PDF-` y el tamaño (`413` si lo supera).
+  - Se guardan en `PRIVATE_FILES_PATH/cv/{guid}.pdf`, **fuera de `/uploads`**, así que no existe ninguna URL pública para ellos. En Docker van en un volumen con nombre, y en local en `private/`, que está en `.gitignore`.
+  - Solo se descargan desde el panel, con sesión, y con `Content-Disposition: attachment` y `nosniff`.
+  - El nombre original se guarda saneado, solo para mostrarlo.
 - Si una imagen del cuerpo de una entrada se sube pero se borra del texto, el archivo queda huérfano dentro de la carpeta de esa entrada. Es aceptable en este alcance; ver §15.
 
 ---
@@ -435,8 +460,9 @@ GR-frontend/src/app/
 │   │   ├── project-detail/         # Detalle (/proyectos/:slug)
 │   │   ├── blog-list/              # Listado, filtro por etiqueta y búsqueda (/blog)
 │   │   ├── blog-post/              # Detalle de la entrada (/blog/:slug)
-│   │   ├── client-inquiry-form/
-│   │   └── job-application-form/
+│   │   ├── contact-section/        # Pestañas ARIA: client-form + talent-form (ambas montadas)
+│   │   ├── settings-panel/         # Preferencias: idioma, movimiento, apariencia
+│   │   └── not-found/              # 404 (con estado HTTP 404 real desde Nginx)
 │   └── admin/                      # Carga diferida, detrás de adminGuard
 │       ├── login/
 │       ├── shell/                  # Layout del panel: menú lateral + barra superior
@@ -445,25 +471,32 @@ GR-frontend/src/app/
 │       ├── blog-list/              # Entradas, con filtro por estado
 │       ├── blog-editor/            # Markdown, vista previa, etiquetas, portada y publicación
 │       └── messages/               # (Opcional) Bandejas de los formularios
-├── shared/ui/                      # Botón, input, paginación, estado vacío, imagen con respaldo,
+├── shared/ui/                      # Logo, Button, Tag, Field, Consent, Notice, Switch,
 │                                   # blog-content (único uso permitido de [innerHTML])
+├── core/i18n/                      # strings.json del handoff + pipe/servicio de traducción
+├── core/preferences/               # applyPreferences(), localStorage "gr-prefs" (handoff §7)
 ├── app.routes.ts
 └── app.config.ts
+src/styles/                         # tokens.css y reference.css del handoff (copiados tal cual)
+public/brand/                       # Logos, favicons y manifest del asset pack
 ```
+
+Los componentes siguen el handoff (§6). Los nombres de clase pueden cambiar, pero los valores de `reference.css` no.
 
 ### 13.1 Rutas
 
 | Ruta | Vista |
 |---|---|
-| `/` | Landing: hero, galería, últimas entradas del blog, formularios |
-| `/proyectos/:slug` | Detalle del proyecto (enlazable directamente) |
-| `/blog` | Listado del blog |
-| `/blog/:slug` | Entrada del blog |
-| `/admin/login` | Inicio de sesión |
-| `/admin` | Redirige a `/admin/proyectos` |
-| `/admin/proyectos` · `/admin/proyectos/nuevo` · `/admin/proyectos/:id` | Lista y editor de proyectos |
-| `/admin/blog` · `/admin/blog/nueva` · `/admin/blog/:id` | Lista y editor de entradas |
+| `/` | Landing (handoff §4): NavBar, Hero, ProjectGallery, ModelBand, ContactSection, Footer |
+| `/proyectos/:slug` | Landing con el detalle de ese proyecto **abierto** (diálogo). Slug oculto o inexistente → 404 |
+| `/aviso-de-privacidad` | Página de texto simple (handoff, apéndice A) |
+| `/blog` · `/blog/:slug` | Listado y entrada del blog *(extensión)* |
+| `/admin/login` | Inicio de sesión. Si ya hay sesión, redirige a `/admin` |
+| `/admin` | Lista de proyectos (handoff) |
+| `/admin/proyectos/nuevo` · `/admin/proyectos/:id` | Editor de proyectos (handoff) |
+| `/admin/blog` · `/admin/blog/nueva` · `/admin/blog/:id` | Lista y editor de entradas *(extensión)* |
 | `/admin/mensajes` | *(Opcional)* Bandejas de clientes y postulaciones |
+| `*` | 404, con estado HTTP 404 real |
 
 ### 13.2 Menú del panel
 
@@ -488,8 +521,11 @@ Todas las rutas del panel, salvo el login, se muestran dentro de `admin/shell`:
 ### 13.3 Otros criterios
 
 - **Formularios reactivos** con validaciones iguales a las del servidor. Son solo para la experiencia de uso: el servidor sigue siendo la autoridad y sus errores por campo se muestran en el formulario.
-- **Sin** Angular Material, *service worker* ni SSR: el diseño visual se implementa con Tailwind y el sitio se ejecuta en local.
-- Las fuentes tipográficas se **alojan en el propio proyecto** para cumplir la CSP (`font-src 'self'`).
+- **Sin** Angular Material, Tailwind, *service worker* ni SSR. El diseño se implementa con CSS plano a partir de `tokens.css` y `reference.css` del handoff, con unidades `rem`, `color-scheme`, `prefers-contrast` y `prefers-reduced-motion` (handoff §5 y §7).
+- **Bilingüe:** español por defecto e inglés, con los textos de `strings.json` del handoff. El idioma vive en las preferencias (`gr-prefs`), no en la ruta. Los datos de la API llegan en los dos idiomas y la vista elige uno.
+- **Fuentes:** el handoff las carga desde Google Fonts, pero aquí se **alojan en el propio proyecto** (mismas familias y pesos: Khula 400/600, Roboto Slab 300/400, Ubuntu 300/400/500). Así la CSP puede ser `font-src 'self'` y no se envían datos de visitantes a terceros. El asset pack lo permite ("To self-host them, download the same families").
+- **404 real:** en Docker, Nginx conoce las rutas válidas de la SPA y responde a cualquier otra con `index.html` y **estado 404**. Para `/proyectos/:slug`, el detalle consulta la API y, si recibe 404, muestra la página de error.
+- **Accesibilidad:** se cumplen las reglas del handoff (§8): foco visible, diálogos nativos, objetivos de 44 px, avisos sin temporizador y un análisis axe sin errores graves.
 
 ---
 

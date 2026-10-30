@@ -7,11 +7,28 @@ El sistema está repartido en **dos repositorios**:
 | Repositorio | Contenido | Tecnología |
 |---|---|---|
 | **GR-backend** (este) | API, base de datos, scripts, imágenes de prueba, Docker Compose y documentación de arquitectura | ASP.NET Core 10 · PostgreSQL 17 |
-| **GR-frontend** | Sitio público y panel de administración | Angular · Tailwind CSS |
+| **GR-frontend** | Sitio público bilingüe (ES/EN) y panel de administración | Angular · CSS con los tokens del handoff |
 
 > **Esta es la guía principal para ejecutar el sistema completo.** El README de GR-frontend solo cubre los detalles propios del frontend.
 >
 > **No necesitas saber .NET.** Basta con copiar los comandos de esta guía, en orden.
+
+### Estado del desarrollo (por lotes)
+
+El sistema se construye y se prueba por lotes. Cada lote amplía lo que se puede verificar con esta guía:
+
+| Lote | Contenido | Estado | Cómo probarlo |
+|---|---|---|---|
+| **1. Base de datos** | Esquema, datos de prueba del handoff, volcado, scripts Docker y local | ✅ Listo | §4 con `docker compose up db`, §5.3 y §8 |
+| **2. API pública** | Solución .NET en capas, salud, categorías, proyectos, imágenes, cabeceras de seguridad, límite global, Docker de la API | ✅ Listo | Sección «API pública (lote 2)» de §6 |
+| **3. Formularios y protección** | Leads de clientes y talento, validación 422, honeypot, CV privado en PDF, límite de peticiones (5 por 15 min) | ✅ Listo | Sección «Formularios (lote 3)» de §6 |
+| 4. Autenticación y API del panel | Login con sesión, bloqueo, antiforgery (CSRF), `/api/admin/projects` (crear, editar, ocultar), bandejas de leads y descarga de CV | ⏳ Pendiente | |
+| 5. Blog (API) | Entradas ES/EN, Markdown saneado, programación, vista previa | ⏳ Pendiente | |
+| 6. Frontend público | Landing, galería, detalle, preferencias, 404, Nginx y `docker compose up --build` completo | ⏳ Pendiente | |
+| 7. Frontend: formularios y panel | Formularios, login, lista y editor de proyectos, blog | ⏳ Pendiente | |
+| 8. Cierre | Pruebas automatizadas, axe, revisión final de las guías | ⏳ Pendiente | |
+
+Mientras un lote esté pendiente, los pasos que dependen de él todavía no funcionan. Por ejemplo, `docker compose up --build` completo requiere los lotes 2 y 6.
 
 ---
 
@@ -115,6 +132,15 @@ Todos los comandos de esta opción se ejecutan **dentro de `GR-backend`**:
 ```bash
 cd GR-backend
 ```
+
+> **Importante:** abre la terminal **sin** permisos de administrador; solo `wsl --install` los necesita. PowerShell como administrador arranca en `C:\Windows\system32` y `docker compose` responde `no configuration file provided: not found`.
+>
+> Si la terminal no está en la carpeta contenedora, entra con la ruta completa, por ejemplo:
+>
+> - PowerShell: `cd "$HOME\OneDrive\Documentos\grupo-ricartti\GR-backend"`
+> - Git Bash: `cd ~/OneDrive/Documentos/grupo-ricartti/GR-backend`
+>
+> También puedes abrir la carpeta `GR-backend` en el Explorador, escribir `powershell` en la barra de direcciones y pulsar Enter.
 
 Crea el archivo de configuración a partir de la plantilla:
 
@@ -283,35 +309,109 @@ Para detener cualquiera de los dos procesos, pulsa `Ctrl + C` en su terminal.
 
 ## 6. Comprobar que todo funciona
 
-Sustituye `<sitio>` por `http://localhost:8080` (Docker) o `http://localhost:4200` (local).
+Cada bloque indica el lote a partir del cual se puede comprobar (ver [Estado del desarrollo](#estado-del-desarrollo-por-lotes)). Sustituye `<sitio>` por `http://localhost:8080` (Docker) o `http://localhost:4200` (local).
 
-**Sitio público**
+**Base de datos (lote 1)**
+
+Con Docker, ejecuta `docker compose up -d db` y luego este comando en `GR-backend`. En Git Bash, antepón `MSYS_NO_PATHCONV=1`:
+
+```bash
+docker compose exec db psql -U postgres -d ricartti -c "SELECT (SELECT count(*) FROM categories) AS categorias, (SELECT count(*) FROM projects WHERE is_visible) AS visibles, (SELECT count(*) FROM projects) AS proyectos, (SELECT count(*) FROM blog_posts) AS entradas"
+```
+
+- [ ] Responde `categorias = 3`, `visibles = 6`, `proyectos = 7` y `entradas = 6`. En la instalación local, el script de §5.3 muestra el mismo conteo al terminar.
+- [ ] Los logs del contenedor (`docker compose logs db`) terminan con `[ricartti] Base de datos lista.` y no muestran errores.
+- [ ] Cargar el volcado (§8) termina con `Volcado cargado.` y deja los mismos conteos.
+
+**API pública (lote 2)**
+
+Con Docker, levanta la base y la API (la primera vez compila la imagen, unos minutos). Desde `GR-backend`:
+
+```bash
+docker compose up -d --build db api
+```
+
+La API queda en **http://localhost:5080**. Ábrelas en el navegador o con `curl`:
+
+- [ ] http://localhost:5080/api/health responde `Healthy`.
+- [ ] http://localhost:5080/api/categories devuelve 3 categorías (`fintech`, `agrotech`, `healthtech`) con `count` = 2 cada una.
+- [ ] http://localhost:5080/api/projects devuelve **6 proyectos** (sin `ruta-fria`), con textos `{ "es": …, "en": … }`, `evidence`, `results` y `support`.
+- [ ] http://localhost:5080/api/projects?category=agrotech devuelve 2 proyectos. `?category=no-existe` devuelve `[]`. `?category=DROP TABLE` devuelve **422** con `{"errors":{"category":"invalid"}}`.
+- [ ] http://localhost:5080/api/projects/kuali-pagos devuelve el proyecto con 3 resultados y 3 evidencias. `/api/projects/ruta-fria` (oculto) y `/api/projects/no-existe` devuelven **404**.
+- [ ] http://localhost:5080/uploads/seed/kuali-pagos/cover.webp muestra la imagen. `http://localhost:5080/uploads/../.env` devuelve 404.
+- [ ] Las respuestas llevan `X-Content-Type-Options: nosniff` y no llevan la cabecera `Server`.
+- [ ] Pedir `/api/categories` más de 120 veces en un minuto devuelve **429** con `Retry-After`.
+
+Sin Docker (opción B), con la base ya creada en §5.3, usa `dotnet run --project src/Ricartti.Api` y las mismas direcciones.
+
+**Sitio público (lotes 2 y 6)**
 
 - [ ] `<sitio>/api/health` responde `Healthy`.
-- [ ] La galería muestra **9 proyectos en 2 páginas**.
-- [ ] Filtrar por **Fintech** muestra 2 proyectos. **Educación** no aparece entre las categorías porque está inactiva.
-- [ ] Buscar `credito` (sin acento) encuentra **Crédito Semilla**.
-- [ ] Al abrir una tarjeta se ve el detalle con sus evidencias (imágenes y resultados).
-- [ ] `<sitio>/proyectos/hidro-pura` muestra "no encontrado", porque el proyecto está oculto.
-- [ ] Al enviar el formulario de clientes aparece un mensaje de confirmación. Si lo envías con campos inválidos, se muestran los errores de cada campo.
-- [ ] Al enviar el formulario de talento sin LinkedIn ni portafolio aparece un error.
-- [ ] Enviar un formulario más de 5 veces seguidas devuelve **"Demasiadas solicitudes"** (límite de peticiones).
+- [ ] La galería muestra **6 proyectos**. **Ruta Fría** no aparece porque está oculto.
+- [ ] El filtro muestra **Todos + Fintech, Agrotech y Salud digital**, con 2 proyectos cada una, y actualiza `?categoria=` en la URL.
+- [ ] `<sitio>/proyectos/kuali-pagos` abre el detalle con 3 resultados, 3 evidencias y sus áreas de respaldo. **Esc** lo cierra.
+- [ ] `<sitio>/proyectos/ruta-fria` y cualquier ruta inexistente muestran la página 404.
+- [ ] Preferencias cambia el idioma (ES/EN), el movimiento y la apariencia, y los cambios se conservan al recargar.
 
-**Blog**
+**Formularios (lote 3, API)**
 
-- [ ] La landing muestra las 3 entradas más recientes, y `<sitio>/blog` lista **3 entradas publicadas**.
-- [ ] Filtrar por la etiqueta **Inversión** muestra 2 entradas. Buscar `energia` (sin acento) encuentra la entrada de energía limpia.
+Todavía no hay interfaz, así que se prueban con `curl` (viene con Windows 10/11, macOS y Linux). Desde `GR-backend`, con la API en marcha (`docker compose up -d --build db api`):
+
+> **Importante:** los formularios admiten **5 envíos por IP cada 15 minutos** (compartidos entre los dos). Cada petición cuenta, también las que fallan por validación. Para repetir las pruebas, reinicia la API: `docker compose restart api`.
+
+```powershell
+# Windows (PowerShell) — usa curl.exe, no "curl" (en PowerShell 5.1 "curl" es otro comando).
+# El JSON se guarda primero en un archivo: PowerShell 5.1 deforma las comillas si se pasa en la línea de comandos.
+Set-Content -Path cliente.json -Encoding ascii -Value '{"name":"Laura Mendez","company":"Fondo Altiplano","email":"laura@ejemplo.test","interest":"acquire","message":"Quiero conocer los proyectos.","consent":true}'
+curl.exe -i -X POST http://localhost:5080/api/leads/client -H "Content-Type: application/json" --data-binary "@cliente.json"
+curl.exe -i -X POST http://localhost:5080/api/leads/client -H "Content-Type: application/json" --data-binary '{}'
+curl.exe -i -X POST http://localhost:5080/api/leads/talent -F "name=Daniel Ortega" -F "email=daniel@ejemplo.test" -F "area=engineering" -F "consent=true"
+Remove-Item cliente.json
+```
+
+```bash
+# macOS / Linux / Git Bash
+curl -i -X POST http://localhost:5080/api/leads/client -H "Content-Type: application/json" -d '{"name":"Laura Mendez","company":"Fondo Altiplano","email":"laura@ejemplo.test","interest":"acquire","message":"Quiero conocer los proyectos.","consent":true}'
+curl -i -X POST http://localhost:5080/api/leads/client -H "Content-Type: application/json" -d '{}'
+curl -i -X POST http://localhost:5080/api/leads/talent -F "name=Daniel Ortega" -F "email=daniel@ejemplo.test" -F "area=engineering" -F "consent=true"
+```
+
+- [ ] El primer comando responde `201 Created` con `{"id":…}`. El segundo (cuerpo vacío) responde **422** con `{"errors":{"name":"required","company":"required","email":"required","interest":"required","message":"required","consent":"consent"}}`. El tercero responde `201`.
+- [ ] Un correo inválido da `"email":"email"`, un interés desconocido `"interest":"invalid"` y `"consent":false` da `"consent":"consent"`.
+- [ ] Con el campo trampa `"website":"x"` la API responde `201`, pero **no guarda nada** (comprueba la tabla con el comando de abajo).
+- [ ] El formulario de talento acepta un PDF real (`-F "cv=@mi-cv.pdf;type=application/pdf"`) y responde **422** `"cv":"file_type"` con cualquier otro tipo, aunque el archivo se llame `.pdf` pero no empiece con `%PDF-`. Un PDF de más de 5 MB responde **413**.
+- [ ] Un enlace que no sea `http(s)://…` (`-F "link=javascript:alert(1)"`) da `"link":"url"`.
+- [ ] El sexto envío en menos de 15 minutos responde **429** con `Retry-After: 900`.
+- [ ] El CV se guarda en una carpeta **privada** (`private/cv/` en local; un volumen en Docker) con un nombre aleatorio. No existe ninguna dirección pública para descargarlo.
+
+Para ver lo que se guardó:
+
+```bash
+docker compose exec db psql -U postgres -d ricartti -c "SELECT id, full_name, email, interest, lang, created_at FROM client_leads ORDER BY id DESC LIMIT 5"
+docker compose exec db psql -U postgres -d ricartti -c "SELECT id, full_name, area, cv_original_name, cv_size_bytes FROM talent_applications ORDER BY id DESC LIMIT 5"
+```
+
+**Formularios (lote 7, interfaz)**
+
+- [ ] Al enviar el formulario de clientes aparece "Solicitud recibida". Si lo envías con campos vacíos, se muestran los errores de cada campo.
+- [ ] El formulario de talento acepta un CV en PDF y rechaza otros tipos de archivo o un PDF de más de 5 MB.
+- [ ] Enviar un formulario más de 5 veces seguidas muestra **"Intenta de nuevo en unos minutos."** (límite de peticiones).
+
+**Blog (lotes 5 y 7)**
+
+- [ ] `<sitio>/blog` lista **3 entradas publicadas**, en el idioma activo.
+- [ ] Filtrar por la etiqueta **Inversión** muestra 2 entradas.
 - [ ] Una entrada se ve con formato (subtítulos, listas, imagen, enlaces), con su autor y su tiempo de lectura.
-- [ ] `<sitio>/blog/tendencias-fintech-proxima-decada` (programada para 2030) muestra "no encontrado".
+- [ ] `<sitio>/blog/agrotech-en-el-norte-de-mexico` (programada para 2030) muestra "no encontrado".
 
-**Panel de administración**
+**Panel de administración (lotes 4 y 7)**
 
 - [ ] `<sitio>/api/admin/projects` sin haber iniciado sesión responde **401**.
-- [ ] Con `operaciones@gruporicartti.test` y una contraseña incorrecta aparece un mensaje genérico. Al sexto intento en un minuto aparece "Demasiadas solicitudes", y esa cuenta queda bloqueada 15 minutos. Usa esta cuenta para la prueba, no la principal.
+- [ ] Con `operaciones@gruporicartti.test` y una contraseña incorrecta aparece "Correo o contraseña incorrectos.". Al sexto intento en un minuto aparece "Demasiadas solicitudes", y esa cuenta queda bloqueada 15 minutos. Usa esta cuenta para la prueba, no la principal.
 - [ ] `inactivo@gruporicartti.test` no puede entrar.
-- [ ] Con `admin@gruporicartti.test` se ven 11 proyectos, incluidos los 2 ocultos.
-- [ ] Al publicar **Mercado Verde**, aparece en la galería pública. Al ocultarlo, desaparece.
-- [ ] Crear un proyecto, subir una portada y añadir una evidencia funciona.
+- [ ] Con `admin@gruporicartti.test` se ven 7 proyectos, incluido **Ruta Fría** (oculto).
+- [ ] Al activar el interruptor de **Ruta Fría**, el proyecto aparece en la galería pública. Al desactivarlo, desaparece.
+- [ ] Crear un proyecto con textos en ES y EN, resultados, áreas de respaldo, portada y evidencias funciona. Sin la versión en inglés, el interruptor de visibilidad no se activa.
 - [ ] En **Blog** se ven 6 entradas con su estado: 3 Publicadas, 1 Programada, 1 Borrador y 1 Archivada.
 - [ ] Crear una entrada, escribir Markdown, verla en **Vista previa**, subir portada y **Publicar ahora** hace que aparezca en `<sitio>/blog`.
 - [ ] Escribir `<script>alert(1)</script>` en el contenido de una entrada lo muestra como texto, sin ejecutarse (protección XSS).
@@ -349,6 +449,7 @@ Se definen en `GR-backend/.env`, que es una copia de [`.env.example`](.env.examp
 | `RATE_LIMIT_GLOBAL_PERMITS_PER_MINUTE` | `120` | Límite general de peticiones por IP. |
 | `WEB_PORT` | `8080` | Puerto del sitio con Docker. |
 | `FRONTEND_PATH` | `../GR-frontend` | Ruta al repositorio del frontend que usa Docker Compose. |
+| `PRIVATE_FILES_PATH` | `private` | Carpeta **privada** de los CV en PDF del formulario de talento, relativa a la raíz de GR-backend. Nunca se sirve en `/uploads` y está en `.gitignore`. En Docker es un volumen con nombre. |
 
 ---
 
@@ -386,7 +487,7 @@ MSYS_NO_PATHCONV=1 docker compose exec db sh /docker-scripts/load-dump.sh
 docker compose start api
 ```
 
-Para regenerar el volcado, consulta [docs/DATABASE.md](docs/DATABASE.md#8-generar-el-volcado).
+Para regenerar el volcado, consulta [docs/DATABASE.md](docs/DATABASE.md#9-generar-el-volcado).
 
 ---
 
@@ -415,6 +516,7 @@ Para ejecutar las pruebas del backend (opcional, solo en la instalación local):
 
 | Problema | Solución |
 |---|---|
+| `no configuration file provided: not found` | La terminal no está en `GR-backend`. Entra con `cd` a esa carpeta y comprueba con `ls` que aparece `docker-compose.yml`. |
 | `docker: command not found`, o Docker no arranca en Windows | Abre Docker Desktop y espera a *Engine running*. Si pide WSL, ejecuta `wsl --install` como administrador y reinicia. |
 | Docker falla al construir `web` (*path not found* o *unable to prepare context*) | GR-frontend no está junto a GR-backend. Clónalo como se indica en el [paso 1](#1-clonar-los-dos-repositorios) o ajusta `FRONTEND_PATH` en `.env`. |
 | `Define DB_PASSWORD en .env` | No existe `GR-backend/.env` o está vacía una contraseña. Repite el paso de copiar `.env.example`. Recuerda ejecutar `docker compose` dentro de `GR-backend`. |

@@ -19,6 +19,9 @@
 **/obj/
 TestResults/
 
+# --- Archivos privados (CV de postulantes): nunca al repositorio -------
+private/
+
 # --- Imágenes subidas en ejecución (las del seed sí se versionan) -----
 uploads/*
 !uploads/seed/
