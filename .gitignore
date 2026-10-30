@@ -1,0 +1,29 @@
+# --- Secretos ---------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pfx
+*.pem
+*.key
+
+# --- Configuración local de herramientas -----------------------------
+.claude/
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# --- .NET -------------------------------------------------------------
+**/bin/
+**/obj/
+TestResults/
+
+# --- Imágenes subidas en ejecución (las del seed sí se versionan) -----
+uploads/*
+!uploads/seed/
+!uploads/seed/**
+
+# --- Sistema operativo ------------------------------------------------
+.DS_Store
+Thumbs.db

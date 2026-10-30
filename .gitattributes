@@ -1,0 +1,17 @@
+# Normaliza finales de línea en el repositorio.
+* text=auto
+
+# Scripts que se ejecutan dentro de Linux (Docker) o en macOS/Linux:
+# deben conservar LF aunque se clonen en Windows.
+*.sh  text eol=lf
+*.sql text eol=lf
+Dockerfile text eol=lf
+
+# Scripts de Windows
+*.ps1 text eol=crlf
+
+# Binarios
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
